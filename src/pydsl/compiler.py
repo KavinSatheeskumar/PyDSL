@@ -199,7 +199,7 @@ class CompilationError(Exception):
             self.src,
         ]):
             lines = self.src.src_str.splitlines()[
-                self.node.lineno - 1 : self.node.end_lineno
+                self.node.lineno - 1: self.node.end_lineno
             ]
 
             for i, l in enumerate(lines):
@@ -331,7 +331,7 @@ class ToMLIR(ToMLIRBase):
                 "operator"
             )
 
-        directive_expr = val[len(DIRECTIVE_ESCAPE) :]
+        directive_expr = val[len(DIRECTIVE_ESCAPE):]
         directive_ast = ast.parse(directive_expr).body[0]
 
         if type(directive_ast) is not ast.Expr:
@@ -426,9 +426,9 @@ class ToMLIR(ToMLIRBase):
 
         match node.op:
             case ast.And():
-                reducer = lambda a, b: a.op_and(b)
+                def reducer(a, b): return a.op_and(b)
             case ast.Or():
-                reducer = lambda a, b: a.op_or(b)
+                def reducer(a, b): return a.op_or(b)
             case _:
                 raise SyntaxError(
                     f"{type(node.op)} is not supported as a boolean operator"
@@ -716,6 +716,17 @@ class ToMLIR(ToMLIRBase):
                         f"Bool, got {test}"
                     )
 
+                if isinstance(test, Number):
+                    # we can do constant folding
+                    if (test.value):
+                        for b in body:
+                            self.visit(b)
+                    else:
+                        for b in orelse:
+                            self.visit(b)
+
+                    return
+
                 if_exp = scf.IfOp(
                     lower_single(test.Bool()),
                     [],  # results are empty for now
@@ -742,6 +753,13 @@ class ToMLIR(ToMLIRBase):
         test = self.visit(node.test)
         body = self.visit(node.body)
         orelse = self.visit(node.orelse)
+
+        if isinstance(test, Number):
+            # we can do constant folding
+            if (test.value):
+                return body
+            else:
+                return orelse
 
         if not isinstance(test, CompileTimeTestable):
             raise TypeError(
@@ -801,10 +819,12 @@ class ToMLIR(ToMLIRBase):
         # compilation
         generate_parent(
             node
-        )  # FIXME: this shouldn't be done as it's an illegal field and it mutates the tree (we are not allowed to mutate)
+            # FIXME: this shouldn't be done as it's an illegal field and it mutates the tree (we are not allowed to mutate)
+        )
         generate_next_line(
             node
-        )  # FIXME: this shouldn't be done as it's an illegal field and it mutates the tree (we are not allowed to mutate)
+            # FIXME: this shouldn't be done as it's an illegal field and it mutates the tree (we are not allowed to mutate)
+        )
 
         self.setup()
 
